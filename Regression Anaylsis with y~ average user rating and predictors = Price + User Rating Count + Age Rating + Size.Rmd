@@ -1,0 +1,175 @@
+---
+title: Regression Anaylsis with y~ average user rating and predictors = Price + User Rating Count + Age Rating + Size
+author: Daniel Han
+date: "5/23/2021"
+output: html_document
+---
+  
+  
+# Cleaning Original Data
+
+```{r}
+library(tidyverse)
+library(magrittr)
+
+
+dirty_games <- read_csv("C:/Users/handa/Desktop/classes/Stat167/project/Project file/appstore_games.csv")
+  
+# INITIAL DATA CLEANING ---------------------------------------------------
+
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+
+```
+
+
+Null hypothesis
+H0: β1 = β2 = · · · = βp = 0
+There is no relationship between X1, X2, · · · , Xp and Y at all
+
+Alternative hypothesis
+Hα: at least one βj =/= 0
+There is some relationship between Xj and Y .
+
+
+
+```{r}
+#multiple linear regression y = Average User Rating, with predictors =  Price + `User Rating Count` + `Age Rating` + Size
+mlr <- lm(`Average User Rating` ~  Price + `User Rating Count` + `Age Rating` + Size  , clean_games)
+summary(mlr)
+
+#size seems to be the best predictor out of the group since it has the lowest p-value and the highest abs(t-value).
+#price is the least significant predictor based on p-value and second lowest abs(t-value).
+# the adjusted R2 is very low tho so the the predictors might not be the best to determine Average User Rating
+#there really seems to be some relationship between X and Y
+
+summary(mlr)$fstatistic
+#value of F statisic is greater than one, proves that there are  some relationship between predictors and Y
+```
+
+Since p-value is so low, we reject null hypothesis and accept the alternative hypothesis. They is some relationship between the predictors and Y.The value of F statisic is greater than one, proves that there are some relationship between predictors and Y. Also, based on the predictor's p-value and abs(t-value) we can also conclude that size is the best predictor for Y or Average User Rating. We also got a low adjusted R2 which means the predictors most predictors don't contribute much to the dependent variable (Average User Rating).The RSE is at 0.7484 which also tells us that the data is a really good fit.
+
+
+```{r}
+library(gridExtra)
+plot1 <- ggplot(clean_games, aes(x = Price, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot2 <- ggplot(clean_games, aes(x = `User Rating Count`, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot3 <- ggplot(clean_games, aes(x = Size, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot4 <- ggplot(clean_games, aes(x = `Age Rating`, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
+```
+Age rating doesn't have a good linear fit. Price has a flat line that is constant while User Rating Count and Size have a positive linear trend.
+
+```{r}
+lin_reg <- lm(`Average User Rating` ~ Size, clean_games)
+summary(lin_reg)
+
+rse <- summary(lin_reg)$sigma
+rse
+
+avg_AUR <- mean(clean_games$`Average User Rating`)
+
+error_rate <- rse / avg_AUR
+error_rate
+
+r2 <- summary(lin_reg)$r.squared
+r2
+
+```
+The  RSE of our model Average User Rating ≈ f (Size) = β0 + β1 × Size is 0.7491. 
+The percentage of prediction error is 18.4%.
+About 0.376% of the variability in Average User Rating is explained by a linear regression on Size.
+F Statistic is much greater than 1 (28.22) so we can assume there is a relationship between Size and Average User Rating.
+
+
+```{r}
+lin_reg <- lm(`Average User Rating` ~ Size, clean_games)
+lin_reg
+
+# draw the residual plot
+diagnostics <- tibble(predictions = lin_reg$fitted.values,
+                      residuals = lin_reg$residuals)
+
+ggplot(diagnostics, aes(x = predictions, y = residuals)) +
+  geom_point() + 
+  geom_smooth(se = F) +
+  geom_hline(yintercept = 0, linetype = 2)
+
+#non linear fit 
+```
+The residual plot suggests that there is some non-linearity in the data. 
+
+
+```{r}
+poly2.fit <- lm(`Average User Rating` ~ Size + I(Size^2), clean_games)
+summary(poly2.fit)$coefficients
+summary(poly2.fit)$adj.r.squared
+
+plot1 <- ggplot(clean_games, aes(x = Size, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm", se = F)
+
+lin_reg <- lm(`Average User Rating` ~ Size, clean_games)
+
+diagnostics <- tibble(predictions = lin_reg$fitted.values,
+                      residuals = lin_reg$residuals)
+
+plot2 <- ggplot(diagnostics, aes(x = predictions, y = residuals)) +
+  geom_point() + geom_smooth(se = F) +
+  geom_hline(yintercept = 0, linetype = 2)
+
+grid.arrange(plot1, plot2, ncol = 2)
+
+#Non-linear relationships - Polynomial regression
+```
+
+```{r}
+lm.fit <- lm(`Average User Rating` ~ Size, clean_games)
+
+dx <- tibble(predictions = lm.fit$fitted.values,
+             residuals = lm.fit$residuals)
+
+plot1 <- ggplot(dx, aes(x = predictions, y = residuals)) + geom_point() +
+  geom_smooth(se = F) + geom_hline(yintercept = 0, linetype = 2)
+
+lm.fit.log <- lm(log(`Average User Rating`) ~ Size, clean_games)
+dx.log <- tibble(predictions = lm.fit.log$fitted.values,
+                 residuals = lm.fit.log$residuals)
+
+plot2 <- ggplot(dx.log, aes(x = predictions, y = residuals)) + geom_point() +
+  geom_smooth(se = F) + 
+  geom_hline(yintercept = 0, linetype = 2)
+
+grid.arrange(plot1, plot2, ncol = 2)
+
+# Non-constant variance of error terms: Heteroscedasticity
+
+```
+
+
+```{r}
+lm.fit.log <- lm(log(`Average User Rating`) ~ Size, clean_games)
+par(mfrow=c(2,2))
+plot(lm.fit.log)
+
+#Diagnostic plot
+
+```
+

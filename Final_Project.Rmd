@@ -1,0 +1,1672 @@
+---
+title: "STAT167 - GROUP 2 - FINAL PROJECT"
+author: "Alexandria Richardson, Daniel Han, Kristoffer Hernandez, and Goldie Starla"
+date: "06/04/2021"
+output: html_document
+---
+  
+# **What defines a game’s success?**
+
+### **Introduction and project description**
+The purpose of this research is to explore the factors that define a game’s success, exploring genre, price of the game, in app purchases, description of the game, what languages the game is offered in, the developers of the game, and the age range of the audience to whom is permitted to play the game. By analyzing these attributes, we are capable of better understanding the reasons behind the success rate of some app games over others. The data entitled “17K Mobile Strategy Games” in which we are analyzing is made up of all strategy games from the Apple App store. We hypothesize games that are free with a wide audience and eye-catching descriptions will draw more users and lead to a game’s success/popularity, where success is being defined as a game which has both a high user count as well as high user ratings. We are making the assumption that games that are free would attract a higher user count and cause those games to have a better chance of succeeding. The results of this research may help gaming developers prioritize some of the important attributes discovered and aid in their games’ success and popularity worldwide. 
+
+#### **Throughout the course of this project we will be answering the following questions:**
+
+**Data exploration and visualization**
+1. Which genre is the most popular?
+2. Which words are most commonly used in Description of games?
+3. Does genre of games cause people to spend more money?
+4. What are the top languages in which games are offered?
+5. What is the distribution of user rating across genre?
+6. Which genre of game does better internationally?
+7. What is the relationship between initial price of apps and average user rating?
+8. What is the average price of in-app purchases?
+9.  Is there a relationship between user rating and in-app purchases? And does the amount of available in-app purchases decrease rating?
+10. What information can we find about game developers and their strategy games?
+11. What is the frequency of the age groups?
+12. How has the size of the applications of the top 3 primary genres changed over a span of about 11 years?
+
+**Data analysis, modeling and/or predictions**
+13. What contributes to a game’s success?
+14. Can we predict if an app is free or not?
+15. What primary genre is similar to the “Games” genre? 
+
+# ------------------------------------------------------------------
+
+To start this analysis we first want to clean the original dataset:
+  
+```{r, collapse = T, echo = F}
+library(tidyverse)
+library(magrittr)
+library(gridExtra) # for the grid.arrange() function
+
+
+dirty_games <- read_csv("C:/Users/Rando/Desktop/STAT167/Group Project/appstore_games.csv")
+  
+# INITIAL DATA CLEANING ---------------------------------------------------
+
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+
+```
+
+
+Separating Data and Renaming Variables:
+```{r, collapse = T, echo = F}
+clean_data <- clean_games %>%
+  select('Price', 'Average User Rating') %>%
+  rename(AUR = 'Average User Rating' )%>%   #renaming Average user rating into something more simple
+  group_by('Price', 'Average_User_Rating') 
+clean_data
+
+```
+
+# ------------------------------------------------------------------
+
+
+### **Data exploration and visualization**
+
+#### **1. Which genre is the most popular?**
+
+
+Cleaning Original Data
+```{r, collapse =T, echo = F}
+# INITIAL DATA CLEANING ---------------------------------------------------
+
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+```
+
+
+
+Most Popular Genres
+```{r, collapse = T, echo = F}
+
+# TIDYING THE DATA FOR COUNT ----------------------------------------
+top_primary_genre <- 
+  clean_games %>%
+  select(`Primary Genre`) %>% # selecting primary genre
+  count(`Primary Genre`, sort = T) %>% # count groups then counts n of primary genre 
+  filter(n > 2)
+
+# print to check
+head(top_primary_genre)
+
+
+
+# BAR CHART OF MOST POPULAR PRIMARY GENRES ----------------------------------
+bar_count_primary_genre <- 
+  ggplot(data = top_primary_genre, 
+       mapping = aes(x = reorder(`Primary Genre`,n), # reorder primary genre according to n
+                         y = log(n))) + # use the log for better visualization bc of the big difference
+  geom_col(mapping = aes(fill = rainbow(13)), # fill with rainbow
+           show.legend = F) + # dont show legend
+  geom_text(mapping = aes(label = n), # add n count
+            hjust = 1.2) + # adjust hight
+  coord_flip() + # flip coords
+  labs(title = "Count of Primary Genre", # change title 
+       x = "Primary Genre") # change x lab
+
+
+# print to check
+bar_count_primary_genre
+
+```
+
+
+What application genre is the most popular as in which type of genre do developers make the most of. Companies could use this information to maybe find out what genre is over-saturated and move into a lesser known genre or they could just follow what’s popular.  
+
+From the graph, the top 2 primary genres are games and entertainment and the least common are music applications. Game applications are probably the most common due to the range of creativity, its popularity and they’re very profitable when it comes to ads. Music might be less popular because there’s a difficult barrier of entry, you’ll need a lot of storage and getting licences can be expensive and difficult. 
+
+# ------------------------------------------------------------------
+
+#### **2. Does genre of games cause people to spend more money?**
+
+After exploring which genre is most popular among users, we examined if genre of games had any influence on the amount of money spent for the app (purchase price) or in the app (in-app purchases). 
+
+Cleaning and separating data
+```{r, collapse = T, echo = F}
+clean_data <- clean_games %>%
+  select('Name','Price', 'In-app Purchases', 'Genres') %>%
+  rename(InApp = 'In-app Purchases' )%>%
+  group_by('Genres') 
+clean_data
+
+genre.vs.moneyspent <- clean_data[-c(5)]
+
+clean_genre_money <-
+  genre.vs.moneyspent %>%
+  separate_rows(InApp, convert = TRUE) %>% 
+  separate_rows(Genres, convert = TRUE) %>% 
+  group_by(Name) %>% 
+  ungroup()
+
+```
+Due to the genre and in-app purchases columns having values separated by columns, the `separate_rows()` function is utilized in order to split each individual element onto a new line.
+
+```{r, collapse = T, echo = F}
+clean_genre_money %>%
+  group_by(Genres) %>%
+  summarise(avgPrice = mean(Price,na.rm=T),
+            avgInApp = mean(InApp, na.rm=T)) %>%
+  arrange(desc(avgInApp)) #sort based on average In app cost
+
+
+clean_genre_money %>%
+  group_by(Genres) %>%
+  summarise(avgPrice = mean(Price,na.rm=T),
+            avgInApp = mean(InApp, na.rm=T),
+            totalavg = sum(avgPrice, avgInApp, na.rm=T)) %>%
+  arrange(desc(avgPrice)) #sort based on average price 
+
+
+clean_genre_money %>%
+  group_by(Genres) %>%
+  summarise(avgPrice = mean(Price,na.rm=T),
+            avgInApp = mean(InApp, na.rm=T),
+            totalavg = sum(avgPrice, avgInApp, na.rm=T)) %>%
+  arrange(desc(totalavg)) #sort based on total price willing to be paid
+```
+Upon being separated into new rows, the `summarize()` function is employed to calculate the average purchase price for the app itself, average of money spent on in-app purchases, and the total average amount spent on both the app itself and in-app purchases. 
+ 
+
+```{r, collapse = T, echo = F}
+price.per.genre <- 
+clean_genre_money %>%
+  group_by(Genres) %>%
+  summarise(avgPrice = mean(Price,na.rm=T),
+            avgInApp = mean(InApp, na.rm=T),
+            totalavg = sum(avgPrice, avgInApp, na.rm=T)) %>%
+  filter(totalavg > 10)#filter so the total average was at least $10
+
+
+ggplot(data = price.per.genre, # ggplot to grpah 
+       mapping = aes(x = Genres, 
+                     y = totalavg)) + # log of total so the distribution is easier to read
+  geom_col(mapping = aes(fill = rainbow(21)), position = position_dodge(width=1.6), color = "black", 
+           show.legend = F) +
+  coord_flip()+
+   labs(title = "Genres vs Total Spent", 
+        y = "Average total spent")
+```
+
+Upon visual inspection and viewing previous tables, based on average upfront cost of the app, the weather genre is the leading most popular genre where people are willing to spend an average of $9.99. Whereas, for the News genre, little upfront cost is paid, however, the average in-app purchases are at $23.87. The top 3 genres that caused people to spend the most money are: News, Networking, and Social.
+
+# ------------------------------------------------------------------
+
+
+#### **3. Which words are most commonly used in the Description of games?**
+
+
+A game’s description is just as important as the hook is in an essay. Just as the hook draws in your audience, the description is used to attract more users to your game which is key to a game’s success. If no one is finding your game, then your description has not adequately captivated your audience. So, in order to determine which words were most often used to describe games, we split the description of the game into multiple strings and found the frequency of each word used, removing any sort of article or non-descriptive words such as “a, the, an, it, this, be, etc.” Looking primarily for adjectives, words that could describe what made their game different or special compared to others, the following word cloud to the left depicts some of the top words used in game descriptions.
+
+
+Cleaning Original Data
+```{r, collapse = T, echo = F}
+# INITIAL DATA CLEANING ---------------------------------------------------
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+
+# print to check
+head(clean_games)
+
+
+```
+
+
+Cleaning Description and Creating Wordcloud
+```{r, collapse = T, echo = F}
+library(tidytext) # library to clean up data
+library(stopwords) # library to delete common words
+library(wordcloud2) # library for wordclouds
+library(webshot) # library to create png
+library(htmlwidgets) # library to create html
+
+
+# SELECTING COLS, TURNING THE STRS INTO SINGLE WORDS AND REMOVING UNNECESSARY CHARS ------------------------------------
+cleaned_descrip <- 
+  clean_games %>% # using the cleaned data 
+  select(Name, Description) %>% # since im working on the description, I dont need the rest of the cols
+  mutate(row = row_number(), # need to set a row number as a way of grouping
+         Description = str_replace_all(Description, c("[:digit:]" = "", # remove numbers
+                                                      "\n" = "", # remove page breaks
+                                                      "\\\\n" = "", # ..
+                                                      "\\\\u" = "", # ..
+                                                      "\\\\ua" = "", # ..
+                                                      "\\\\" = "",  # remove slashes
+                                                      "[:punct:]" = "",  # remove punctuation like "?.,}]) etc"
+                                                      "=" = "",
+                                                      "can|get" = "",
+                                                      "games" = "game")), # remove equals signs
+         Description = str_to_lower(Description)) %>% # make all the strings lower case
+  group_by(Name) %>% # group by name so when I use unnest it will split each string and put to appropriate game Name
+  unnest_tokens(word, Description) %>% # unnest splits the string into unique words
+  ungroup() # ungroup so it doesnt mess me up later
+
+#print to check
+head(cleaned_descrip)
+
+
+
+
+
+# REMOVING COMMON UNNECESSARY WORDS -----------------------------
+tidy_descrip <- 
+  cleaned_descrip %>% # use the cleaned description data
+  anti_join(get_stopwords("en")) # anti_join removes strings and get_stopwords() selects common words like "if, I etc" 
+
+# print to check
+head(tidy_descrip)
+
+
+
+# FINDING WORD COUNT ------------------------------------------
+word_count_cloud <- 
+  tidy_descrip %>% # use the previous tidyied data
+  select(word) %>% # select only words
+  count(word, sort = TRUE) # use count to find the frequency and sort 
+
+# print to check
+head(word_count_cloud, 10) #view top 10 words
+
+
+# CREATING WORDCLOUD ----------------------------------------------
+set.seed(69) # setting seed
+palat <- c("#C63E2F", "#D387AB", "#79ADDC", "#FFA62B", "#FFEE93") # color palatte
+wc_graph <- wordcloud2(word_count_cloud, # set the words and frequency
+           size = 1, # font size 
+           minSize = 8, # changes amount of words displayed
+           shape = "circle", # shape
+           color = colorRampPalette(palat, bias = 3)(150), # input color palate and how many words for it to encompass
+           minRotation = -pi/2, # rotatoins of words
+           maxRotation = -pi/2,
+           rotateRatio = .4, # proportion that gets rotated
+           shuffle = F, # dont shuffle words from list
+           ellipticity = 0.8) # shape of circle
+
+# print to check
+wc_graph
+
+```
+
+
+Looking at the wordcloud we can see that game is use the most often. Afterward is play, new, world, players, levels. 
+
+Top 10 Game Descriptors, excluding ambiguous phrases/words and repeated plural versions of the same word:
+
+1. game
+2. play
+3. new
+4. world
+5. players
+6. strategy
+7. time
+8. free
+9. battle
+10. levels
+
+# ------------------------------------------------------------------
+
+#### **4. What are the top languages in which games are offered?**
+
+
+Cleaning Original Data
+```{r, collapse = T, echo = F}
+
+# INITIAL DATA CLEANING ---------------------------------------------------
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+
+# print to check
+head(clean_games)
+
+```
+
+
+
+Frequency Bar Chart of Languages
+
+Cleaning the Language Column
+```{r, collapse = T, echo = F}
+
+clean_lang <-
+  clean_games %>%
+  select(Name, Languages) %>% # selecting only lang and name cols
+  separate_rows(Languages, convert = TRUE) %>% # separate_rows splits up a delimited value and places it in a separate row (unnest_tokens would do the same thing)
+  group_by(Name) %>% # group_by name so that when we filter the duplicated languages it wont delete languages unique to a certain game but aren't unique in general
+  filter(!duplicated(Languages)) %>% # filter out duplicates with the function duplicated()
+  ungroup() # ungroup to prevent any future bugs
+
+# print to check
+head(clean_lang)
+
+```
+
+
+Finding Frequency of Top 15 Languages
+```{r, collapse = T, echo = F}
+
+tidy_lang <-
+  clean_lang %>% 
+  group_by(Languages) %>% # group by language so when I can find sums of each lang
+  summarise(total = n()) %>% # sum of each lang group
+  arrange(desc(total)) %>% # sort by descending 
+  top_n(15, total) %>% # choose the top 35 only because more gets too chaotic
+  mutate(full_lang = NA) %>% # create an empty row for the later loop
+  ungroup() # ungroup to prevent future bugs
+
+# print to check
+head(tidy_lang)
+
+```
+
+Import Full Lang, Clean Dataset, Create Loop to Put Full Name Instead of Abbrev
+```{r, collapse = T, echo = F}
+
+# read in data
+lang_codes <- read_csv("C:/Users/Rando/Desktop/STAT167/Group Project/language-codes_csv.csv")
+
+# print to check
+lang_codes[21:30,]
+
+
+# CLEANING DATASET -----------------------------------------------
+lang_codes %<>%
+  mutate(alpha2 = str_to_upper(alpha2)) %>% # change strings to upper case so we can compare 
+  separate_rows(English,
+                sep = "[;|,]") %>%  # separate the strings by a delim
+  filter(!duplicated(alpha2)) # some rows had multiple names for a lang so I deleted them to make xlab shorter
+  
+# print to check
+lang_codes[21:30,]
+
+
+# FOR LOOP TO MATCH THE FULL NAME WITH ABBREV ----------------------------------------
+count <- 0 # counts so to get specific indeces
+count1 <- 0
+for (i in tidy_lang$Languages){ # for each abbreviation
+  count1 <- count1 + 1 # count 1 + count
+  for (n in lang_codes$alpha2) { # for each abbreviation
+    count <- count + 1 # count 1
+    if(i == n) { # if the abbreviations are equal
+      tidy_lang$full_lang[count1] = lang_codes$English[count] # set the empty as the full name
+      count <- 0 # set counts to 0 as a reset
+      break # break out of for loop
+    }
+  }
+}
+
+
+```
+
+
+Bar Plot of Top 15 Languages
+```{r, collapse = T, echo = F}
+
+top15_lang <- ggplot(data = tidy_lang, # ggplot to grpah 
+       mapping = aes(x = reorder(full_lang, total), # reorder the languages according to the total value
+                     y = total)) + # log of total so the distribution is easier to read
+  geom_col(mapping = aes(fill = rainbow(15)), # geom col for frequency chart
+           colour = "black", # outline is black
+           show.legend = F) + # dont show legend
+  labs(title = "Total for Top 15 Languages", # add titles and change x and y axes
+        x = "Language",
+       y = "Total") +
+  coord_flip() + # flip the coordinate system
+  geom_text(mapping = aes(label = total), # add the totals to each language
+            hjust = 1.2) # adjust text placement
+
+# print to check
+top15_lang
+
+```
+
+
+We wanted to explore what languages occurred most often in applications. As was expected, the most popular application language is English, followed by German, Chinese, and French. Most likely that is because most of the audience on the apple store speaks English, so most apps include the language. 
+
+# -----------------------------------------------------------------
+
+#### **5. What is the distribution of user rating across genre?**
+
+
+Cleaning Original Data
+```{r, collapse = T, echo = F}
+
+
+  
+# INITIAL DATA CLEANING ---------------------------------------------------
+
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+
+```
+
+
+Violin of Average User Rating Across Genre
+```{r, collapse = T, echo = F}
+
+# SPECIFYING WHICH GENRES I WANT TO GRAPH --------------------------------------------
+top15 <- unname(unlist(top_primary_genre[1:12,1])) %>% # some of the genres had too little data and the violin plots were incomplete
+  str_remove("Music") # music plot looked weird
+
+# print to check
+head(top15)
+
+
+# TIDYING DATA FOR PLOTTING ----------------------------------------------
+rating_genre <-
+  clean_games %>%
+  select(`Average User Rating`, `Primary Genre`) %>% # selecting the cols I want to graph
+  filter(`Primary Genre` %in% top15) # filtering the cols I want to graph
+
+# print to check
+head(rating_genre)
+
+# PLOTTING THE VIOLIN CHART
+rating_genre_violin <- 
+   rating_genre %>%
+  ggplot(mapping = aes(x = reorder(x =`Primary Genre`, # reorder primary genre according to the means of average rating
+                                   X = `Average User Rating`,
+                                   FUN = mean), # fun is the function to order by, mean
+                       y = `Average User Rating`, # y is user rating
+                       fill = `Primary Genre`)) + # fill with primary genre for colors
+  geom_violin(show.legend = F) + # dont show legend for violin plot
+  labs(title = "Average Using Rating Across Primary Genre", # titles
+       x = "Primary Genre",
+       y  = "Average User Rating")
+
+# print to check 
+rating_genre_violin
+
+
+```
+
+
+Next we wanted to look at the average user rating across different primary genres. From the violin plot, you can see that there’s a lot of variability in each primary genre with the exception of the book genre. A possible reason the book genre has little outliers is because there isn't as much data as say the games genre. 
+
+The graph also shows that on the left half there isn’t really a high concentration of user ratings in one area, it's kind of spread around in comparison to something like the games genre where you can specifically see that there's a higher concentration of ratings around 4.5. 
+
+# ------------------------------------------------------------------
+
+#### **6. Which genre of game does better internationally?**
+
+After identifying the top languages in which games are offered, we then decided to delve into which genre of games did better internationally.
+
+
+Cleaning and separating data
+```{r, collapse = T, echo = F}
+clean_data <- clean_games %>%
+  select('Price', 'Average User Rating') %>%
+  rename(AUR = 'Average User Rating' )%>%   #renaming Average user rating into something more simple
+  group_by('Price', 'Average_User_Rating') 
+clean_data
+
+```
+
+The separate_rows() function is utilized on the languages and genres columns in order to place each individual language and genre separated by column into a new row.
+
+```{r, collapse = T, echo = F}
+
+clean_lang <-
+  clean_games %>%
+  select(Name, Languages, Genres) %>% # selecting only lang and name cols
+  separate_rows(Languages, convert = TRUE) %>% 
+  separate_rows(Genres, convert = TRUE) %>% 
+  group_by(Name) %>% # group_by name so that when we filter the duplicated languages it wont delete languages unique to a certain game but aren't unique in general
+  ungroup() # ungroup to prevent any future bugs
+
+# print to check
+head(clean_lang)
+
+```
+Since we are only wanting to look at international languages, English is excluded from this dataset, and the data frame is grouped by language and genre, summarizing the total count of each language/genre pair.
+
+```{r, collapse = T, echo = F}
+clean_lang %>% 
+  filter(Languages != "EN") %>% #excluding all english speaking countries
+  group_by(Languages, Genres) %>% 
+  summarise(total = n()) %>% # sum of each lang/genre group
+  arrange(desc(total)) %>% # sort by descending 
+  top_n(35, total)  # choose the top 35 
+```
+
+Based on this table, the top two genres that are the most popular  are in ZH (Chinese) and have a games and strategy genre , with DE (German) and FR (French) coming in 2nd and 3rd place, also favoring games and strategy genres.
+
+# ------------------------------------------------------------------
+
+#### **7. What is the relationship between initial price of apps and average user rating?**
+
+Next, we wanted to look at the relationship between different age ratings and their user rating across primary genres. 
+If there are missing columns like in finance, it just means that the finance apps generally have their apps available for all ages.
+
+
+Looking at the books graph, you can see that the book applications that are rated for teens and up have a higher rating ran for children. 
+The games genre is relatively similar throughout all age ratings, slightly dropping off at the 17+ games. 
+
+What was most interesting was that the social networking apps that allowed children 4+ to use the application were rated really low. The ratings could be from upset parents frustrated that their child is messaging someone online. Companies could possibly look at this and set age restrictions to prevent younger children going onto these social networking apps and maybe their ratings will increase. 
+
+
+Cleaning and separating data
+```{r, collapse = T, echo = F}
+clean_data <- clean_games %>%
+  select('Price', 'Average User Rating') %>%
+  rename(AUR = 'Average User Rating' )%>%   #renaming Average user rating into something more simple
+  group_by('Price', 'Average_User_Rating')
+clean_data
+```
+```{r}
+library(gridExtra) # for the grid.arrange() function
+
+G1 <-ggplot(data = clean_data) +
+        	geom_bar(mapping = aes(x = Price))+
+        	coord_cartesian(xlim = c(0, 20)) +
+        	labs(title = "Overall Price", # change title
+             	x = "Prices (excluding prices over $20)") # change x lab
+
+G2 <-ggplot(data = clean_data) +
+      	geom_bar(mapping = aes(x = AUR))+
+      	coord_cartesian(xlim = c(0, 5)) +
+      	labs(title = "Overall Average User Rating", # change title
+            	x = "Average USer Rating") # change x lab
+
+grid.arrange(G1, G2,ncol=2)
+
+```
+
+
+
+The distribution for prices and ratings.
+One of the most important factors people would look at is money. It’s more likely that a game that is free would have more downloads and users than a game with an initial monetary entry. Unsurprisingly, when a game or app is free, the user count is massively higher than games that require an upfront cost. Many questions would also come from this such as the quality of product from a free game vs one that is paid. Some might think a paid game would naturally be “better in quality” than one that is free since the cost of entry is higher. The overall average user rating showed that 4.5 is the most common rating between all price points combined. 
+
+```{r, collapse = T, echo = F}
+#only free games
+free <- filter(clean_data,Price == 0 )  
+
+
+#$0.01 to $1
+oneD <- filter(clean_data, Price <=1 & Price >0)  
+
+
+#$1.01 to $3
+cheap <- filter(clean_data, Price <=3 & Price > 1 )
+
+#$3.01 to $5
+medium <- filter(clean_data, Price <=5 & Price > 3)  
+
+
+#$5.01 to $10
+expensive <- filter(clean_data,Price <=10 & Price > 5)
+expensive
+
+#more than $10
+unreal <- filter(clean_data, Price > 10)
+
+
+Seperated_data<- list(free,oneD, cheap, medium, expensive, unreal)
+Seperated_data
+```
+Filtering Games by prices
+
+```{r, collapse = T, echo = F}
+free_plot <- ggplot(data = free) +
+  geom_bar(mapping = aes(x = AUR, fill = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "Free Apps") # change x lab
+
+
+oneD_plot <- ggplot(data = oneD) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "Price from $0.01 - $1") # change x lab
+
+
+cheap_plot <- ggplot(data = cheap) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "Price from $1.01 - $3") # change x lab
+
+
+meduim_plot <- ggplot(data = medium) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "Price from $3.01 - $5") # change x lab
+
+
+expensive_plot <- ggplot(data = expensive) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "Price from $5.01 - $10") # change x lab
+
+
+unreal_plot <- ggplot(data = unreal) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title
+   	x = "More than $10") # change x lab
+
+
+grid.arrange(free_plot, oneD_plot, cheap_plot, meduim_plot, expensive_plot, unreal_plot, ncol=3)
+```
+
+
+
+Plotting to see what the average ratings for apps in each price point are.
+We decided to separate the charts to see if the ratings would be different or not. As you can see, the free apps have a sample size that is way higher than all the other price points combined. This isn’t much of a surprise since we expect the free games to have a much lower point of entry than the others. This leads to more players trying out the game. The more shocking information is how the ratings between all price points were relatively constant throughout. The price point that had the lowest ratings overall seem to be the games that were the most expensive too. This raises a question on whether the quality of product expected only starts to come in when an app or game goes up to a certain price point and beyond.
+
+# ------------------------------------------------------------------
+
+#### **8. What is the average price of in-app purchases?**
+
+After taking a glance at the initial purchase price of apps, we then explored in-app purchase prices. 
+
+In order to find the average price of in-app purchases, the dataset was filtered to include only the name, price, average user rating, and in-app purchase prices. Since the in app purchase prices column had multiple price offerings per game separated by column, we used the separate rows() function to split each individual in app purchase price onto a new row, and convert all values to numerics. From there, the summarise function was implemented to find the average in-app purchase price.
+```{r, collapse = T, echo = F}
+clean_data1 <- clean_games %>%
+  select('Name','Price', 'Average User Rating', 'In-app Purchases') %>%
+  rename(AUR = 'Average User Rating', InApp = 'In-app Purchases' )%>%   group_by('Price', 'Average_User_Rating', 'In-app Purchases') 
+inappdata <- clean_data1[-c(5:7)]
+
+```
+
+Average User Rating = AUR
+InApp = In app purchases
+```{r, echo = F}
+#separate inapp purchases into separate rows where purchase values are separated by comma
+inappdata <- separate_rows(inappdata, InApp, sep = ",")
+#convert In app purchase prices to numeric values
+inappdata$InApp <- as.numeric(inappdata$InApp)
+
+#-----------------------------------------------------
+inappdata %>%
+  summarise(avgPrice = mean(Price,na.rm=T),
+            avgRating = mean(AUR, na.rm=T),
+            avgInApp = mean(InApp, na.rm=T))
+
+```
+
+The average price of in-app purchases is approximately $11.40.
+
+# ------------------------------------------------------------------
+
+#### **9.  Is there a relationship between user rating and in-app purchases? And does the amount of available in-app purchases decrease rating?**
+
+Then, after calculating the average in-app purchase price, we examined if a relationship existed between user ratings and in-app purchases.
+
+So in order to visually see this, we plotted the average user rating against the in-app purchase price to determine if there was any sort of trend, along with checking the correlation between the two variables.
+
+```{r, collapse = T, echo = F}
+#plot the data to visually see the relationship
+plot(inappdata$AUR,inappdata$InApp,xlab="Average User Rating", ylab = "In App Purchase Price", main = "Relationship between In App Purchase and User Rating")
+
+#use complete.obs due to the NA values in "InApp"
+cor(inappdata$AUR,inappdata$InApp,use="complete.obs")
+
+```
+
+The negative correlation returned from Average User Rating and In App Purchases can lead us to believe that as the cost of In App Purchases increase, therefore, the Average User Rating will decrease.
+
+However, with a correlation coefficient of -0.01, being so close to 0, shows that while a negative relationship does exist, the existence of a relationship between In App Purchases and Average User Rating is extremely minimal.
+
+
+# ------------------------------------------------------------------
+
+#### **10. What information can we find about game developers and their strategy games?**
+
+
+```{r, collapse=T, echo = F}
+library(wesanderson) #for the colors of graph
+
+topgames <- clean_games %>%
+  dplyr::select(Name, Developer, `Average User Rating`, `User Rating Count`) %>%
+  arrange(desc(`User Rating Count`)) %>%
+  top_n(5) #to find the top 5 with the highest user rating count
+topgames
+
+plot <- ggplot(topgames, aes(x = reorder(Name, `User Rating Count`), y = `User Rating Count`)) +
+  geom_bar(aes(fill = Developer), stat = "identity", position = "dodge") +
+  geom_text(aes(label = `Average User Rating`), hjust = 1.4, color = "white") +
+  coord_flip() +
+  xlab("Games") +
+  ylab("User Rating Count") +
+  scale_fill_manual(values = wes_palette(n = 5, name = "Rushmore"))
+plot
+```
+
+
+For this graph, the popularity of a game is measured with a high user rating count, instead of Average User Rating. Average User Count is not a good measurement for popularity because a lot of games can have a very high rating, but very low count of ratings. 
+When looking at the graph, a surprising thing we found was that the two most popular games were both created by the same game developer, Supercell. 4 out of 5 of the games shown on the graph also have a really high average user rating of 4.5.
+
+
+# ------------------------------------------------------------------
+
+#### **11. What is the frequency of the age groups?**
+
+
+```{r, collapse = T, echo = F}
+library(wesanderson) #for the colors of graph
+
+age <- clean_games %>%
+  group_by(`Age Rating`) %>%
+  summarise(Count = n())
+
+ggplot(age, aes(x = reorder(`Age Rating`, Count), y = Count, fill = `Age Rating`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(legend.position = "none") +
+  ggtitle("Age Ratings in Games") +
+  xlab("Age Ratings") +
+  scale_fill_manual(values=wes_palette(n=4, name="Moonrise2"))
+```
+
+
+When looking at the graph, a large majority of the games have the age ratings as 4 and above. Games have lower age ratings so they can attract more users. 
+
+
+# ------------------------------------------------------------------
+
+#### **12. How has the size of the applications of the top 3 primary genres changed over a span of about 11 years?**
+
+Cleaning Original Data
+```{r, collapse = T, echo = F}
+
+# INITIAL DATA CLEANING ---------------------------------------------------
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+
+# print to check
+head(clean_games)
+
+
+```
+
+```{r, collapse = T, echo = F}
+library(hrbrthemes)
+library(gganimate)
+
+tidy_genre_size <- clean_games %>%
+  mutate(date = format(`Original Release Date`, "%Y-%m")) %>%
+  select(`Primary Genre`, Size, date) %>%
+  group_by(date, `Primary Genre`) %>%
+  summarise(AS_per_month = mean(Size)) %>%
+  ungroup() %>%
+  mutate(date1 = as.Date(paste(date, "-01", sep = ""))) %>%
+  filter(`Primary Genre` == c("Games", "Entertainment", "Education"))
+
+
+
+#view_follow(fixed_y = T)
+
+plot_genre_size <- tidy_genre_size %>%
+  ggplot(aes(x = date1, 
+             y = AS_per_month, 
+             group = `Primary Genre`,
+             colour = `Primary Genre`)) +
+  geom_line(lwd = 1, 
+            show.legend = F) +
+  geom_segment(aes(xend = as.Date("2019", "%Y"), yend = AS_per_month), 
+               linetype = 1, 
+               colour = "grey") +
+  geom_point(show.legend = F) +
+  geom_text(aes(x = as.Date("2020", "%Y"), label = `Primary Genre`), 
+            hjust = 0.7, 
+            show.legend = F) +
+  labs(title = "Change in Game Size for Top 3 Primary Genres from 2008-2019",
+       x = "Year",
+       y = "Size (bytes)") +
+  transition_reveal(date1) +
+  coord_cartesian(clip = "off")
+
+genre_size_gif <- animate(plot_genre_size, 
+        duration = 10, 
+        width = 800, 
+        end_pause = 40,
+        fps = 20)
+
+genre_size_gif
+
+
+```
+
+
+Next we asked how the size of the applications of the top 3 primary genres changed over a span of about 11 years. As we can see, the bytes of the applications increased quite a lot, averaging now at about 3 time 10^8 bytes.
+
+This makes sense as applications become more complex including more lines of code, more features, higher resolution images and 3D models with more polygons. This will all increase the size of the application. 
+
+# ------------------------------------------------------------------
+
+
+### **Data analysis, modeling, and/or predictions**
+
+#### **13. What contributes to a game’s success?**
+
+#### **Linear Regression Analysis (Measuring by Average User Rating )**
+
+There are a lot of ways to measure the success of a game. With the dataset we have , we decided that Average User rating would be a good way to measure that success.
+
+We decided to go with these 4 variables as our predictors since they seem to be important factors that would play a part in a game’s rating. Age rating helps focus a game to a specific age group which might give it a better chance of a good rating. Expectations of a game based on age rating might differ and some of those expectations might be easier to satisfy  compared to others. Price gives an expectation on how good the game should be as users would’ve given an initial “investment” before actually playing the game. Size would make a game more appealing as it would mean the game has more features and might be a more refined game compared to those who are much smaller in size. User Rating Count can show how active the game is and lets us know the sample size behind each rating. A bigger sample size would be better since it would reinforce if the game would be entertaining for a large group of people.
+
+**Null hypothesis:**
+H0: β1 = β2 = · · · = βp = 0
+There is no relationship between X1, X2, · · · , Xp and Y at all
+
+**Alternative hypothesis:**
+Hα: at least one βj =/= 0
+There is some relationship between Xj and Y .
+
+This will be our hypothesis testing to see if the predictors have a relationship with our Y, which in this case would be Average User Rating. To test this we would have to calculate the p-value for the predictors with relationship to our Y.
+
+```{r, collapse = T, echo = F}
+#multiple linear regression y = Average User Rating, with predictors =  Price + `User Rating Count` + `Age Rating` + Size
+mlr <- lm(`Average User Rating` ~  Price + `User Rating Count` + `Age Rating` + Size  , clean_games)
+summary(mlr)
+
+#size seems to be the best predictor out of the group since it has the lowest p-value and the highest abs(t-value).
+#price is the least significant predictor based on p-value and second lowest abs(t-value).
+# the adjusted R2 is very low tho so the the predictors might not be the best to determine Average User Rating
+#there really seems to be some relationship between X and Y
+
+summary(mlr)$fstatistic
+#value of F statistic is greater than one, proves that there are some relationship between predictors and Y
+```
+
+
+We ran a multiple linear regression test and we were able to get some important information. Firstly, our p-value given is really low and because of that, we can safely reject our null hypothesis and accept our alternative hypothesis while saying that there is some relationship between our Y and predictors. Aslo, our F-statistics is greater than 1 which also tells us that there are some relationships between predictors and Y. Then, we got a very low adjusted R2. A low adjusted R2 indicates that the independent variable is not explaining much in the variation of the dependent variable. RSE tells us the lack of fit and a small RSE tells us how good the fit of the model would be. The RSE we got was really low so it tells us that that model fits really well in our data. Lastly, let's pick our best predictor out of the bunch to see which one would define our Y the best. If we look at the p-value and abs(t-value) we can also conclude that size is the best predictor for Y or Average User Rating since it has the lowest p-value by far and the highest t-value.
+
+```{r, collapse = T, echo = F}
+library(gridExtra)
+plot1 <- ggplot(clean_games, aes(x = Price, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot2 <- ggplot(clean_games, aes(x = `User Rating Count`, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot3 <- ggplot(clean_games, aes(x = Size, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+plot4 <- ggplot(clean_games, aes(x = `Age Rating`, y = `Average User Rating`)) +
+  geom_point() + geom_smooth(method = "lm")
+
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
+```
+
+We plotted the predictors and see that Age rating doesn’t show a linear regression line while Price has a constant neutral regression line. However, both Size and User Rating count have a positive linear trend.
+
+
+# -----------------------------------------------------------------
+
+#### **14. Can we predict if an app is free or not?**
+
+For the next model, we wanted to predict if the application will be free or not using multiple logistic regression. 
+
+To start off, we had to do some initial cleaning. The in-app purchases column contained a string of all the purchases the app had. From there we separated the rows and turned them into doubles. Now that they were doubles we could summarise to find the total amount of in app purchases, total count and avg iap. 
+We also created classes to group the app avg iaps because that would prove to be useful in later models.
+
+
+
+```{r, echo = F}
+
+# loading necessary libraries
+library(boot)
+library(plotROC)
+
+
+# INITIAL BASE DATA CLEANING ---------------------------------------------------
+# The base for all datasets
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle, -`Icon URL`) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+
+# CLEANING AND FINDING SUMMARIES OF THE IN APP PURCHASES COLUMN ---------------------------------
+iap.summaries <- 
+  clean_games %>%
+  separate_rows(`In-app Purchases`) %>% # splitting the strings into individual prices
+  mutate_at(vars(`In-app Purchases`), ~replace(.,is.na(.), 0)) %>% # replacing the NA values in the iap col with 0's
+  mutate(`In-app Purchases` = as.double(`In-app Purchases`)) %>% # converting the strings to doubles
+  group_by(Name) %>% # grouping by name 
+  summarise(sum.iap = sum(`In-app Purchases`), # finding the total amount of iap's for each app
+            count.iap = n(), # finding the count of iap's for each app
+            avg.iap = sum.iap / count.iap) # normalizing the data by finding the avg iap per app
+  
+# print to check
+iap.summaries %>%
+  arrange(desc(avg.iap)) # checking to see what the max avg iap is
+
+
+# CREATING A CLASS COL GROUPING THE AVG IAP ---------------------------------------------
+i <- 0
+for(avg in iap.summaries$avg.iap) { # looping through each avg
+  i <- i + 1
+  if (avg == 0) { # if the avg equals the specified
+    iap.summaries$iap.class[i] <- "$0" # then name the index as the class
+  } else if (avg > 0 & avg <= 10) { # repeat until $80 which is the max avg
+    iap.summaries$iap.class[i] <- "$0.01-$10.00"
+  } else if (avg > 10 & avg <= 20) {
+    iap.summaries$iap.class[i] <- "$10.01-$20.00"
+  } else if (avg > 20 & avg <= 30) {
+    iap.summaries$iap.class[i] <- "$20.01-$30.00"
+  } else if (avg > 30 & avg <= 40) {
+    iap.summaries$iap.class[i] <- "$30.01-$40.00"
+  } else if (avg > 40 & avg <= 80) {
+    iap.summaries$iap.class[i] <- "$40.01-$80.00"
+  }
+} 
+
+# print to check
+head(iap.summaries)
+
+```
+
+
+Next, we were given date columns like the day the app was released and the day they were last updated, but we can’t really use the dates in a model. So we found the total number of days since the app was released and the days since its last update by subtracting the date of release and the date of last update by the date the data was scraped (08-03-2019). 
+
+
+
+
+And because we wanted to predict if the applications are free or not, we use an if-else statement to assign a 1 if the app was free and a 0 if it wasn’t. 
+
+
+
+
+```{r, echo = F}
+# JOINING THE IAP SUMMARIES AND BASE DATASETS AND MORE CLEANING -----------------------------------------
+almost.clean.apps <- 
+  clean_games %>%
+  inner_join(., iap.summaries, by = "Name") %>% # join datasets with inner join by the name col
+  mutate(Today = as.Date("2019-08-03", "%Y-%m-%d"), # creating a new col of the date the date was collected Aug 3, 2019 
+         days.since.release = as.double(Today - `Original Release Date`), # using todays date to find the days since the game was released
+         days.since.last.update = as.double(Today - `Current Version Release Date`),
+         free = NA) %>% # creating empty cols for classes so we can plot later
+  filter(!is.na(Languages))
+  
+# print to check
+head(almost.clean.apps[13:18])
+
+
+# TURNING THE PRICE COL INTO 1's AND 0's / YES NO FOR LOGISTIC REGRESSION -----------------------------------
+# predicting if something will be free or not
+for (i in 1:nrow(almost.clean.apps)) { # for each price in price col
+  
+  ifelse(almost.clean.apps$Price[i] == 0, # if the price is equal to 0
+         almost.clean.apps$free[i] <- 1, # then the index is equal to 1
+         almost.clean.apps$free[i] <- 0) # otherwise its equal to 0
+}
+
+# print to check
+almost.clean.apps[,c(1,4,19:22)]
+```
+
+
+
+The last of the cleaning before we start modeling is to remove unnecessary variables and separate the language and genre variables by their delimiters shown in the before and after.
+
+
+
+```{r, echo = F}
+
+# FINAL CLEANING BEFORE PERFORMING THE LOGISTIC REGRESSION ---------------------------------------
+# this base dataset will include the classes i made so that i can test the class models vs the non class
+logit.data.base <- 
+  almost.clean.apps %>%
+  select(-`In-app Purchases`, -Description, -Developer, -`Current Version Release Date`, -`Original Release Date`, -Today, -Price) %>% # removing unnecessary cols
+  separate_rows(Languages) %>% # splitting rows of languages
+  group_by(Name) %>% # group_by name so that when we filter the duplicated languages it wont delete languages unique to a certain game but aren't unique in general
+  filter(!duplicated(Languages)) %>% # filter out duplicates with the function duplicated()
+  ungroup() %>% # ungroup to prevent any future bugs 
+  separate_rows(Genres) # splitting rows of genres 
+
+# print to check
+clean_games[,c(1,9,12)]
+logit.data.base[,c(1,5,8)]
+
+# this dataset will have no classes
+logit.data.clean <-
+  logit.data.base %>%
+    select(-Name, -avg.iap) # deselect the class cols and other unnecessary
+
+# print to check
+logit.data.clean
+
+```
+
+The first model we created was a full width base model. This meant that we would use the base information given, with none of the new variables we made. The base predictors were average user rating, user rating count, age rating, languages, primary genre, sub genre and the size of the app. Because we are using logistic regression we used the glm function with family equal to binomial to predict if the app was free. 
+
+We also created a function to find the misclassification error to decrease redundancy.
+
+
+
+## Multiple Logistic Regression of Original Data Given (No Edits)
+### Creating a function to find mce
+```{r, echo = F}
+
+# FIRST MAKE A MODEL OF THE ORIGINAL DATA SET -----------------------
+
+# SELECTING ORIGINAL COLUMNS
+logit.data.orig <- logit.data.clean %>%
+  select(!sum.iap:days.since.last.update)
+
+logit.data.orig
+
+# REGRESSION MODEL USING GLM -------------------
+logit.base.fw <- glm(free ~., family = binomial(), data = logit.data.orig)
+
+# SUMMARY OF THE MODEL
+summary(logit.base.fw)
+
+# CREATE FUNCTION TO FIND THE MISCLASSIFICATION ERROR
+find.mce <- function(logit_model, logit_data) {
+  logit.price.prob <- predict(logit_model, type = "response") # predict the conditional probabilities P(free = 1 | all.predictors)
+  assign("f.logit.prob", logit.price.prob, envir = .GlobalEnv) # assigning the mce to a global variable so we can use them later
+  
+  logit.price.class <- ifelse(logit.price.prob > 0.5, "1", "0") %>% as.factor() # bayes rule
+  assign("f.logit.class", logit.price.class, envir = .GlobalEnv) # assigning the mce to a global variable so we can use them later
+  
+  mce <- mean(logit_data$free != logit.price.class) # calculate the misclassification error
+  assign("f.mce", mce, envir = .GlobalEnv) # assigning the mce to a global variable so we can use them later
+  
+  return(mce) # return the value
+}
+
+# MCE OF MODEL
+find.mce(logit.base.fw, logit.data.clean)
+
+# MCE of 0.1372
+```
+
+
+
+Looking at the coefficients of the base full width model. As you can see, the model’s quite unsightly. There are a lot of insignificant coefficients with only 11/113 of the languages being significant, none of the primary genres being significant and half of the sub genres are significant. However, for a base model, a misclassification error or mce of 0.137 is not bad. 
+
+
+Next, we added on the cleaned predictors we made to our original model and compared the misclassification errors.
+The added predictors were: sum of in-app purchases or sum.iap, count.iap, iap.class, days since release and days since last update. 
+
+
+## Multiple Logistic Regression with All New Columns
+```{r, echo = F}
+
+# CLEAN DATA FULL WITH MODEL 1
+logit.clean.fw <- glm(free ~., family = binomial(), data = logit.data.clean)
+
+# SUMMARY TO LOOK AT SIG VALUES
+summary(logit.clean.fw)
+
+# setting an appropriate cost function for binary response variable
+cost.logit <- function(r, pi = 0) mean(abs(r-pi) > 0.5)
+
+# 10-fold cross validation
+# cv.glm(logit.data.clean, logit.clean.fw, cost = cost.logit, K = 10)$delta[1]
+  # cross validation doesn't work because there are variables that have little data points
+
+# CALL MCE FUNCTION
+find.mce(logit.clean.fw, logit.data.clean)
+
+# mce is 0.1150164
+
+```
+
+
+Unfortunately, there are even less significant language variables with 2/113 being significant and less significant sub genres with 17/48 being significant. Also, the iap class of $40 to $80 is insignificant as well.
+On the other hand, we have a new high score and we were able to decrease our mce to 0.115. 
+
+
+SInce the clean full width model had a smaller mce, we filtered to keep only the significant variables and redid the model. However, filtering left the dataset with 592 expanded rows out of the once 99,000 rows. And because they were expanded, in reality it's probably only about 200 different apps so the glm function was unable to run due to too few variables. 
+
+
+## Keeping Only Significant Variables and Redo the Regression
+```{r, error=T, echo = F}
+
+# CREATING VECTORS OF SIG VAR FROM FW MODEL -----------------------------------
+sig.lang <- c("BG", "RO") 
+sig.sub.genre <- c("Board", "Business", "Casino", "Casual", "Education", "Family", "Finance", "Games", "Lifestyle", "Music", "Playing", "Reference", "Role", "Simulation", "Sports", "Strategy", "Trivia")
+sig.class <- c("$0.01-$10.00", "$10.01-$20.00", "$20.01-$30.00", "$30.01-$40.00")
+
+
+# CLEAN DATA ACCORDING TO SIG VARS -----------------------------------
+logit.data.sig.err <- 
+  logit.data.clean %>%
+  select(`Average User Rating`, `User Rating Count`, `Age Rating`, Languages, Size, Genres, sum.iap, count.iap, iap.class, free, days.since.release, days.since.last.update) %>%
+  filter(Genres %in% sig.sub.genre & iap.class %in% sig.class & Languages %in% sig.lang)
+
+# print to check
+logit.data.sig.err
+
+# LOGIT REGRESSION WITH SIG VARS ------------------------------
+logit.sig.err <- glm(free ~ ., family = binomial, data = logit.data.sig.err)
+
+```
+
+
+
+
+So instead of filtering by “and” we filtered by “or.” Meaning that as long as a row contained any significant variable, we would use it for the model. And as you can see, we were left with significantly more data to work with, containing 93,000 rows. 
+Also, for the sig.or model, because previously none of the Primary Genres were significant with p values around 0.95, we removed the variable completely. 
+
+
+
+## Removing if the Row ONLY has Insignificant Values and Redo Regression
+```{r, echo = F}
+
+# CLEAN DATA ACCORDING TO SIG VARS -----------------------------------
+logit.data.sig.or <- 
+  logit.data.clean %>%
+  select(`Average User Rating`, `User Rating Count`, `Age Rating`, Size, Genres, Languages, sum.iap, count.iap, iap.class, free, days.since.release, days.since.last.update) %>%
+  filter(Genres %in% sig.sub.genre | iap.class %in% sig.class | Languages %in% sig.lang)
+
+# print to check
+logit.data.sig.or
+
+# LOGIT REGRESSION WITH SIG VARS ------------------------------
+logit.sig.or <- glm(free ~ ., family = binomial, data = logit.data.sig.or)
+
+summary(logit.sig.or)
+
+find.mce(logit.sig.or, logit.data.sig.or)
+
+# mce 0.1077057
+```
+
+
+Looking at the sig.or model, we have similar significant coefficients to the base full width model in Languages and sub genres, but we have an even lower mce at 0.1077. Our significant variables are size, count and sum iap, days since release and last update, user rating count and age rating.
+
+
+On logit.err we filtered to make sure that each column had the significant variables, but because there were so few in the languages significant variables we couldn't get enough data to make a model.
+Because there were so few significant variables, this time we removed the language column and then filtered by the significant variables
+
+
+
+## Keeping Only Significant Variables (Minus Language) and Redo the Regression
+```{r, echo = F}
+
+# CLEAN DATA ACCORDING TO SIG VARS -----------------------------------
+logit.data.sig.and.nl <- 
+  logit.data.clean %>%
+  select(`Average User Rating`, `User Rating Count`, `Age Rating`, Size, Genres, sum.iap, count.iap, iap.class, free, days.since.release, days.since.last.update) %>%
+  filter(Genres %in% sig.sub.genre & iap.class %in% sig.class)
+
+# print to check
+logit.data.sig.and.nl
+
+# LOGIT REGRESSION WITH SIG VARS ------------------------------
+logit.sig.and.nl <- glm(free ~ ., family = binomial, data = logit.data.sig.and.nl)
+
+summary(logit.sig.and.nl)
+
+find.mce(logit.sig.and.nl, logit.data.sig.and.nl)
+
+# mce 0.069
+# much better than last time
+
+```
+
+
+
+After looking through the Language and sub genre column, we found that there are a lot of languages and sub genres with very few occurrences. We figured if a variable occurred in an app 10-30 times it wouldn’t provide much data to successfully predict anything. So we found the counts of all languages and subgenres and if it occurred less than 30 times we named it “other”. 
+
+
+## Finding the Counts of Each Language and Genre then Putting them into a Different Class if Below a Certain Count
+```{r, echo = F}
+# FINDING THE MOST COMMON LANGUAGES ----------------------
+count.lang <- 
+  logit.data.base %>% 
+  select(Name, Languages) %>% # select specific cols 
+  count(Name, Languages) %>% # count twice to get the count of languages
+  count(Languages) %>%
+  arrange(desc(n)) %>% # arrange in descending order
+  mutate(lang.new = NA)
+
+# IF STATEMENT TO CLASSIFY n < 30 AS OTHER
+for(row in 1:nrow(count.lang)){
+  if (count.lang$n[row] < 30) {
+    count.lang$lang.new[row] <- "Other"
+  } else {
+    count.lang$lang.new[row] <- count.lang$Languages[row]
+  }
+} 
+
+# print to check
+count.lang[105:110,]
+
+
+# FINDING THE MOST COMMON GENRES ------------------------
+count.genres <-
+  logit.data.base %>%
+  select(Name, Genres) %>% # select specific cols
+  count(Name, Genres) %>% # count twice to get count of genres
+  count(Genres) %>%
+  arrange(desc(n)) %>% # arrange in descending order
+  mutate(genre.new = NA)
+
+# IF STATEMENT TO CLASSIFY n < 30 AS OTHER
+for(row in 1:nrow(count.genres)){
+  if (count.genres$n[row] < 30) {
+    count.genres$genre.new[row] <- "Other"
+  } else {
+    count.genres$genre.new[row] <- count.genres$Genres[row]
+  }
+} 
+
+# print to check
+count.genres[40:45,]
+
+```
+
+
+
+We then combined the new variables to the previous data using left_join and reran practically the same model. The only difference is that instead of filtering for the significant languages and sub genres, renaming any language or sub genre that occurred less than 30 times, “other.”
+
+
+
+```{r, echo = F}
+
+# CLEAN THE DATA USING THE NEW VECTORS OF TOP DATA ------------------------
+logit.data.count <- 
+  logit.data.clean %>%
+  left_join(., count.genres, by = "Genres") %>%
+  left_join(., count.lang, by = "Languages") %>%
+  select(`Average User Rating`, `User Rating Count`, `Age Rating`, Size, genre.new, lang.new, sum.iap, count.iap, iap.class, free, days.since.release, days.since.last.update) %>%
+  filter(iap.class %in% sig.class)
+
+# print to check
+logit.data.count %>%
+  filter(genre.new == "Other" & lang.new == "Other")
+
+# regression of new data
+logit.count <- glm(free ~., family = binomial, data = logit.data.count)
+
+summary(logit.count)
+
+# calculate misclassfication error
+find.mce(logit.count, logit.data.count)
+
+# mce of 0.0676. 
+
+# the same thing was also attempted but without the language column and got an mce of 0.6782
+```
+
+Looking at the coefficients for the count model, we have a higher ratio of significant to insignificant variables in languages and sub genres than the previous versions and we yet again decreased our mce, this time to 0.0676. One small issue was that the average user rating variable was insignificant again, but when we tried to remove it and my mce jumped so we kept it in. So this should be our best model right?
+
+
+To confirm our results, we created a function to find the roc curve and mce for each model and then compare them
+
+
+## Comparison of Evaluation Metrics for All Models
+```{r, echo = F}
+
+# FUNCTION TO FIND THE OBSERVED, PREDICTED, MCE AND CLASS
+find.roc <- function(model, data, name) {
+  find.mce(model, data)
+  
+  # Creating a confusion matrix
+  confusion.matrix <- table(data$free, f.logit.class)
+  
+  # extract the conditional prob P(default = "1", | cols)
+  roc.df <- tibble(observed = data$free,
+                   predicted = f.logit.prob,
+                   mce = f.mce,
+                   class = name)
+  
+  return(roc.df)
+}
+
+# USE FIND.ROC ON ALL MODELS FOUND IN PREVIOUS CHUNKS
+s <- find.roc(logit.count, logit.data.count, "count")
+b <- find.roc(logit.sig.or, logit.data.sig.or, "sig.or")
+c <- find.roc(logit.clean.fw, logit.data.clean, "clean.fw")
+d <- find.roc(logit.base.fw, logit.data.clean, "base.fw")
+
+# BIND THEM TOGETHER IN 1 DF
+metrics.df <- rbind(s,b,c,d)
+
+# print to check
+metrics.df
+
+# CLEAN THE DATA TO CREATE A BAR PLOT 
+all.mce.data <- metrics.df %>%
+  group_by(class) %>%
+  summarise(mce = mean(mce)) # summarise to just get 1 number
+
+# print to check
+all.mce.data
+
+all.mce <- ggplot(data = all.mce.data, aes(x = reorder(class, mce, median) , # order the bars by least to greatest
+                                           y = mce, fill = class)) +  # fil by class
+  geom_col() + # geom col to get a bar plot
+  scale_fill_manual(breaks = c("base.fw", "clean.fw", "sig.or", "count"), # scale fill manual to specify colours
+                        values=c("#f3722c", "#f9c74f", "#f94144", "#577590")) +
+  geom_text(aes(label = format(round(mce, 4), nsmall = 4)), # geom text to change add the mce on the bars, round 
+            vjust = 1.2, colour = "white", size = 5) + # adjust using vjust and change other dimensions
+  labs(title = "All Model MCE's", x = "class") # x label
+
+# print to check
+all.mce
+
+metrics.df.1 <- metrics.df %>%
+  mutate(class = paste(class, format(round(mce, 4), nsmall = 4)))
+
+# print to check
+metrics.df.1
+
+all.roc <- ggplot(data = metrics.df.1, aes(d = observed, m = predicted)) +
+  geom_roc(labels = F, aes(colour = class)) +
+    scale_colour_manual(breaks = c("base.fw 0.1372", "clean.fw 0.1150", "sig.or 0.1077", "count 0.0677"),
+                        values=c("#f3722c", "#f9c74f", "#f94144", "#577590")) +
+  labs(title = "All Model ROC Curves")
+
+# print to check
+all.roc
+
+```
+
+Looking first at the mce plot, we can see the 4 different models and their respective mce’s with count being the lowest and base full with being the greatest. However, when we look at the ROC curve, we see that sig.or and clean full width models have curves closer to the edges and thus a greater AUC. 
+
+Because misclassification error is calculated using just one threshold, even though count has the smallest mce, because the ROC curve represents both type I and type II errors and shows classification results of all thresholds, sig.or and clean.fw are the better models. 
+
+
+
+
+Since clean.fw and sig.or were practically the same, we used sig.or as the best model to calculate some classification evaluation metrics.
+
+
+
+
+## Classfication Evaluation Metrics
+```{r, error = T, echo = F}
+
+# 10-FOLD CROSS VALIDATION MISCLASSFICATION ERROR RATE
+cv.glm(logit.data.sig.or, logit.sig.or, cost = cost.logit, K = 10)$delta[1]
+
+find.mce(logit.sig.or,logit.data.sig.or)
+
+
+# SENSITIVITY AND SPECIFICTY 
+# renaming variables from the function
+logit.count.prob <- f.logit.prob
+logit.count.class <- f.logit.class
+
+# Creating a confusion matrix
+confusion.matrix <- table(logit.data.sig.or$free, logit.count.class)
+
+# print to check
+confusion.matrix
+
+# SOLVING FOR SENSITIVITY 
+tp <- confusion.matrix[2,2]
+fn <- confusion.matrix[2,1]
+
+sensitivity <- tp/(tp+fn)
+sensitivity
+
+# SOLVING FOR SPECIFICITY 
+tn <- confusion.matrix[1,1]
+fp <- confusion.matrix[1,2]
+
+specificity <- tn/(tn+fp)
+specificity
+
+# extract the conditional prob P(default = "1", | cols)
+roc.df <- tibble(observed = logit.data.sig.or$free,
+                 predicted = logit.count.prob)
+
+roc.df
+
+count.roc.plot <- ggplot(data = roc.df, aes(d = observed, m = predicted)) +
+  geom_roc(labels = F) +
+  labs(title = "ROC Curve of the Model Sig.or")
+
+count.roc.plot <- count.roc.plot + annotate("text", x = 0.75, y = 0.25,
+           label = paste("AUC = ", round(calc_auc(count.roc.plot)$AUC, 2)))
+
+count.roc.plot
+```
+
+
+ We weren't able to find the 10 fold cross validation mce because cv.glm kept giving me an error about the dataset containing too many variables with too few data points. Which were attempted to be removed from the count model earlier. So, we just used the custom function to find mce and found a  10% rate of mistakes are made if we apply our model. 
+
+
+Then we found the confusion matrix using the table function to compare my observed and predicted values of whether the game was free or not. From the confusion matrix we were able to calculate a True Positive Rate of 0.98 and False Positive Rate of 0.7085.
+
+
+
+Model evaluation and validations
+
+```{r, echo = F}
+lin_reg <- lm(`Average User Rating` ~ Size, clean_games)
+summary(lin_reg)
+
+rse <- summary(lin_reg)$sigma
+rse
+
+avg_AUR <- mean(clean_games$`Average User Rating`)
+
+error_rate <- rse / avg_AUR
+error_rate
+
+r2 <- summary(lin_reg)$r.squared
+r2
+
+```
+The  RSE of our model Average User Rating ≈ f (Size) = β0 + β1 × Size is 0.7491.
+The percentage of prediction error is 18.4%. About 0.376% of the variability in Average User Rating is explained by a linear regression on Size. F-Statistic is much greater than 1 (28.22) so we can assume there is a relationship between Size and Average User Rating.
+As we separate size from the other predictor, we can calculate it’s RSE, adjusted R2, and other data. As we can see, the numbers were really close to what we had before except F-statistics is much higher which reinforces the idea that size and Average User Rating do have a strong relationship.
+
+
+```{r, echo = F}
+lin_reg <- lm(`Average User Rating` ~ Size, clean_games)
+lin_reg
+
+# draw the residual plot
+diagnostics <- tibble(predictions = lin_reg$fitted.values,
+                  	residuals = lin_reg$residuals)
+
+ggplot(diagnostics, aes(x = predictions, y = residuals)) +
+  geom_point() +
+  geom_smooth(se = F) +
+  geom_hline(yintercept = 0, linetype = 2)
+
+#non linear fit
+```
+
+The residual plot suggests that there is some non-linearity in the data. 
+
+# -----------------------------------------------------------------
+
+#### **15. What primary genre is similar to the “Games” genre?**
+
+
+```{r, echo = F}
+#Prepare the data
+games <- clean_games %>%
+  dplyr::select(`Primary Genre`, `Average User Rating`, `User Rating Count`, Price, Size) %>%
+  group_by(`Primary Genre`) %>%
+  na.omit() %>%
+  summarise(avg.user.rating = mean(`Average User Rating`),
+            user.rating.count = mean(`User Rating Count`),
+            price = mean(Price),
+            size = mean(Size))
+
+library(tidyverse)
+games <- games %>% 
+  remove_rownames %>% 
+  column_to_rownames(var = "Primary Genre") #to prepare scaled data
+head(games) 
+
+#Scale
+games.scaled <- scale(games)
+games.scaled <- data.frame(games.scaled)
+
+summarize_all(games.scaled, funs(mean, sd))
+```
+The variable “Primary Genre” is used because it is the key genre that each of these games are associated with. After grouping by genres, we found the average of each numerical variable: Average User Rating, User Rating Count, Price, and Size. We found the average because there is a lot of data for each genre, and it should be done in order to scale the data properly. Scaling is important before clustering analysis so it eliminates any bias.
+
+```{r, echo = F}
+kcluster <- c(1:15)
+for (i in 1:15) {
+  kcluster[i] <- kmeans(scale(games), centers = i, nstart = 20)$tot.withinss
+}
+cbind(kcluster)
+
+plot(1:15, kcluster, xlab = "Number of Clusters", ylab = "Within-Cluster Sum of Squares")
+abline(v = 6, lty = 3, col = "blue") #6 is the best cluster
+```
+We ran a for loop to find the best number of clusters, with nstart as 20 because that seems like a stable number of times to rerun. When we plot the elbow method, we find that 6 is the best number of clusters because it doesn’t decrease significantly after the cutoff at 6. 
+
+```{r, echo = F}
+#hierarchical clustering
+
+library(ggdendro)
+games.average <- hclust(d = dist(games.scaled), method = "average")
+#cut the dendrogram into 6 clusters
+games.cl <- cutree(tree = games.average, k = 6) 
+games.cl.tb <- tibble(label = names(games.cl), cluster = as.factor(games.cl))
+
+#get dendrogram
+games.average.dd <- as.dendrogram(games.average)
+#lines for the dendrogram
+games.average.dd.data <- dendro_data(games.average.dd, type = "rectangle")
+
+#join labels with cluster results
+labels.games <- label(games.average.dd.data) %>% 
+  left_join(games.cl.tb)
+
+#plot dendrogram 
+ggplot(data = segment(games.average.dd.data)) + 
+  geom_segment(mapping = aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = labels.games, 
+            mapping = aes(label = label, x = x, y = -0.5, color = cluster), 
+            size = 5, hjust = 1, angle = 0) +
+  ylim(low = -10, high = 10) +
+  coord_flip() + 
+  scale_x_reverse()
+```
+When we plotted the dendrogram, we found that the primary genre “Games” is not associated with any other primary genres. There are no primary genres that are similar to “Games”. 
+
+```{r, echo = F} 
+##Comparing result with the top 10 most popular games by user rating count
+clean_games %>%
+  dplyr::select(Name, `Primary Genre`, `Average User Rating`, `User Rating Count`) %>%
+  arrange(desc(`User Rating Count`)) %>%
+  filter(row_number(desc(`User Rating Count`)) <= 10)
+```
+This table shows that the top 10 popular games all tagged the genre “Games” as their primary genre. 
+
+
+# -----------------------------------------------------------------
+
+### **Conclusions and discussion**
+
+#### **Conclusion on what contributes to a game’s success and relationship between initial price and average user rating:**
+
+
+Thanks to the analysis, we can conclude that size is our best predictor for Average User Rating. It had the strongest relationship, and with the plot we did with linear regression lines, we saw that as the size of the game increases, the rating also increases which will contribute to a game’s overall success. Initial price also doesn’t dictate average user rating as much as we thought as a lot of the price points had the same average rating (around 4.5/5) until the price goes up to over 10 dollars. Even so, the average rating for those games average around 4/5.
+
+
+Using the multiple classification regression, we were able to conclude that the best model to predict if an application will be free or not is the sig.or or clean.fw model. Using the model, we were able to successfully predict 79656 true positive values, 1617 false negative values, 3463 true negative values, and 8417 false positive values. 
+
+-------------------------------------------------------------------
+
+#### **Conclusion for similarity of primary genres:**
+
+We can conclude that the primary genre “Games” is a very distinct genre. For a game to be recognized in the Apple App Store, their genre needs to be marked as “Games”. Since a lot of the popular games also tagged “Games” as their primary genre, we can assume that the genre “Games” is one of the many important factors that contributes to a popular strategy game. 
+
+
+# -----------------------------------------------------------------
+
+### **Authors' contributions [clarify each team member's contribution]**
+
+**Alexandria Richardson**
+
+* Introduction and Project description
+* Does genre of games cause people to spend more money?
+* Is there a relationship between user rating and in-app purchases?
+* Does the amount of available in-app purchases decrease rating?
+* Which genre of game does better internationally?
+* Which words are most commonly used in Description of games? 
+* What is the average price of in-app purchases?
+
+**Daniel Han**
+
+* What contributes to a game’s success?
+* What is the relationship between initial price of apps and average user rating?
+* Conclusion on what contributes to a game’s success and relationship between initial price and average user rating.
+
+**Kristoffer Hernandez**
+
+* Which words are most commonly used in Description of games? 
+* Which genre is most popular?
+* What are the top languages in which games are offered?
+* What is the distribution of user rating across genre?
+* How has the size of the applications of the top 3 primary genres changed over the span of about 11 years?
+* Can we predict if an app is free or not?
+
+**Goldie Starla**
+
+* What information can we find about game developers and their strategy games?
+* What is the frequency of the age groups?
+* What primary genre is similar to the “Games” genre? 
+* Conclusion for similarity of primary genres 
+
+# -----------------------------------------------------------------
+
+### **References**
+Tristan. “17K Mobile Strategy Games.” Kaggle, 26 Aug. 2019, www.kaggle.com/tristan581/17k-apple-app-store-strategy-games.
+
+
+

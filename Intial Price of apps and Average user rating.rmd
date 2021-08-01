@@ -1,0 +1,147 @@
+---
+title: Intial Price of apps and Average user rating
+author: Daniel Han
+date: "4/28/2021"
+output: html_document
+---
+  
+  
+  # Cleaning Original Data
+```{r}
+
+
+library(tidyverse)
+library(magrittr)
+
+
+dirty_games <- read_csv("C:/Users/handa/Desktop/classes/Stat167/project/Project file/appstore_games.csv")
+  
+# INITIAL DATA CLEANING ---------------------------------------------------
+
+clean_games <-
+  dirty_games %>%
+  select(-URL, -ID, -Subtitle) %>% # Remove URL and ID as those are irrelevant
+  mutate(`Original Release Date` = as.Date(`Original Release Date`, format = "%d/%m/%Y"), # originally the dates were chr so we're changing the cols 
+         `Current Version Release Date` = as.Date(`Current Version Release Date`, format = "%d/%m/%Y")) %>%
+  filter(!is.na(`Average User Rating`), # filter out the NAs from average user rating
+         !duplicated(Name)) # filter out the duplicate names
+
+# print to check
+head(clean_games)
+
+
+```
+
+
+
+Cleaning and seperating data
+```{r}
+clean_data <- clean_games %>%
+  select('Price', 'Average User Rating') %>%
+  rename(AUR = 'Average User Rating' )%>%   #renaming Average user rating into something more simple
+  group_by('Price', 'Average_User_Rating') 
+clean_data
+
+```
+
+
+
+The distribution for prices and ratings.
+```{r}
+library(gridExtra) # for the grid.arrange() function
+
+G1 <-ggplot(data = clean_data) +
+            geom_bar(mapping = aes(x = Price))+
+            coord_cartesian(xlim = c(0, 20)) +
+            labs(title = "Overall Price", # change title 
+                 x = "Prices (excluding prices over $20)") # change x lab
+
+G2 <-ggplot(data = clean_data) +
+          geom_bar(mapping = aes(x = AUR))+
+          coord_cartesian(xlim = c(0, 5)) + 
+          labs(title = "Overall Average User Rating", # change title 
+                x = "Average USer Rating") # change x lab
+
+grid.arrange(G1, G2,ncol=2)
+
+```
+Filtering Games by prices 
+
+```{r}
+#only free games
+free <- filter(clean_data,Price == 0 )  
+
+
+#$0.01 to $1
+oneD <- filter(clean_data, Price <=1 & Price >0)  
+
+
+#$1.01 to $3
+cheap <- filter(clean_data, Price <=3 & Price > 1 )
+
+#$3.01 to $5
+meduim <- filter(clean_data, Price <=5 & Price > 3)  
+
+
+#$5.01 to $10
+expensive <- filter(clean_data,Price <=10 & Price > 5) 
+expensive
+
+#more than $10
+unreal <- filter(clean_data, Price > 10)
+
+
+Seperated_data<- list(free,oneD, cheap, meduim, expensive, unreal)
+Seperated_data
+
+
+
+```
+
+Plotting to see what the average ratings for apps in each price point
+```{r}
+free_plot <- ggplot(data = free) +
+  geom_bar(mapping = aes(x = AUR, fill = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "Free Apps") # change x lab
+
+
+oneD_plot <- ggplot(data = oneD) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "Price from $0.01 - $1") # change x lab
+
+
+cheap_plot <- ggplot(data = cheap) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "Price from $1.01 - $3") # change x lab
+
+
+meduim_plot <- ggplot(data = meduim) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "Price from $3.01 - $5") # change x lab
+
+
+expensive_plot <- ggplot(data = expensive) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "Price from $5.01 - $10") # change x lab
+
+
+unreal_plot <- ggplot(data = unreal) +
+  geom_bar(mapping = aes(x = AUR))+
+  coord_cartesian(xlim = c(0, 5)) +
+  labs(title = "Average User Rating", # change title 
+       x = "More than $10") # change x lab
+
+
+grid.arrange(free_plot, oneD_plot, cheap_plot, meduim_plot, expensive_plot, unreal_plot, ncol=3)
+```
+
